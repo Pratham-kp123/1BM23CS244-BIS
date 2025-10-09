@@ -1,5 +1,7 @@
 import random
 import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
 
 class AntColony:
     def __init__(self, graph, num_ants, num_iterations, alpha, beta, evaporation_rate, q0):
@@ -69,6 +71,31 @@ class AntColony:
             for i in range(len(path) - 1):
                 self.pheromone[path[i]][path[i + 1]] += pheromone_deposit
 
+    def visualize_graph(self, best_path):
+        G = nx.DiGraph()
+
+        for i in range(self.num_nodes):
+            for j in range(self.num_nodes):
+                if self.graph[i][j] > 0:
+                    G.add_edge(i, j, weight=self.graph[i][j])
+
+        pos = nx.spring_layout(G)
+        plt.figure(figsize=(8, 6))
+        nx.draw_networkx_nodes(G, pos, node_size=500, node_color='lightblue')
+        nx.draw_networkx_labels(G, pos, font_size=12)
+        nx.draw_networkx_edges(G, pos, width=1.0, alpha=0.7, edge_color='gray')
+
+        # Highlight the best path
+        path_edges = [(best_path[i], best_path[i + 1]) for i in range(len(best_path) - 1)]
+        nx.draw_networkx_edges(G, pos, edgelist=path_edges, width=4, edge_color='r', alpha=0.7)
+
+        # Edge labels (weights)
+        edge_labels = nx.get_edge_attributes(G, 'weight')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+
+        plt.title("Graph with Best Path Highlighted")
+        plt.show()
+
 if __name__ == "__main__":
     graph = np.array([
         [0, 1, 1, 0, 0, 0],
@@ -90,8 +117,8 @@ if __name__ == "__main__":
     start_node = 0
     end_node = 5
     best_path, best_cost = ant_colony.run(start_node, end_node)
+
     print(f"Best path from node {start_node} to node {end_node}: {best_path}")
     print(f"Path cost: {best_cost}")
-Output:
-Best path from node 0 to node 5: [0, 2, 5]
-Path cost: 2
+
+    ant_colony.visualize_graph(best_path)  
