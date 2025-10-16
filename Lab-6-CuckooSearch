@@ -1,0 +1,76 @@
+import numpy as np
+import math
+
+lines = [
+    (0, 1, 0.01, 0.05),
+    (1, 2, 0.015, 0.045),
+]
+
+loads = {
+    1: (100, 60),
+    2: (90, 40),
+}
+
+Q_c_min = 0
+Q_c_max = 50
+
+buses = [1, 2]
+
+def power_loss(Qc):
+    P_losses = 0
+    for (f, t, R, X) in lines:
+        P_load = loads.get(t, (0, 0))[0]
+        Q_load = loads.get(t, (0, 0))[1]
+        Q_net = Q_load - Qc[buses.index(t)]
+        S = complex(P_load, Q_net)
+        I = abs(S)
+        P_losses += (I**2) * R
+    return P_losses
+
+def cuckoo_search_opf(n=15, max_iter=100, pa=0.25):
+    dim = len(buses)
+    lb = np.array([Q_c_min] * dim)
+    ub = np.array([Q_c_max] * dim)
+
+    nests = np.random.uniform(lb, ub, (n, dim))
+    fitness = np.array([power_loss(nest) for nest in nests])
+    best_idx = np.argmin(fitness)
+    best_nest = nests[best_idx].copy()
+    best_fitness = fitness[best_idx]
+
+    def levy_flight(Lambda=1.5):
+        sigma = (math.gamma(1 + Lambda) * math.sin(np.pi * Lambda / 2) /
+                 (math.gamma((1 + Lambda) / 2) * Lambda * 2 ** ((Lambda - 1) / 2))) ** (1 / Lambda)
+        u = np.random.normal(0, sigma, size=dim)
+        v = np.random.normal(0, 1, size=dim)
+        step = u / abs(v) ** (1 / Lambda)
+        return step
+
+    for t in range(max_iter):
+        for i in range(n):
+            step = levy_flight()
+            new_nest = nests[i] + step * (nests[i] - best_nest)
+            new_nest = np.clip(new_nest, lb, ub)
+            fnew = power_loss(new_nest)
+
+            if fnew < fitness[i]:
+                nests[i] = new_nest
+                fitness[i] = fnew
+
+        K = np.random.rand(n) < pa
+        nests[K] = np.random.uniform(lb, ub, (np.sum(K), dim))
+        fitness[K] = np.array([power_loss(n) for n in nests[K]])
+
+        min_idx = np.argmin(fitness)
+        if fitness[min_idx] < best_fitness:
+            best_fitness = fitness[min_idx]
+            best_nest = nests[min_idx].copy()
+
+        print(f"Iteration {t+1}: Best Power Loss = {best_fitness:.4f} kW, Capacitor Q = {best_nest}")
+
+    return best_nest, best_fitness
+
+if __name__ == "__main__":
+    best_Qc, best_loss = cuckoo_search_opf()
+    print("\nOptimal Capacitor Reactive Power Injection (kVAR):", best_Qc)
+    print(f"Minimum Total Power Loss: {best_loss:.4f} kW")
